@@ -1,0 +1,16 @@
+{
+  "name": "dingtalk-claude-bot",
+  "version": "1.0.0",
+  "description": "钉钉企业内部机器人 + Claude AI 双向对话服务（Stream 模式）",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "gui": "node src/gui/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "dingtalk-stream": "2.1.6-beta.1",
+    "dotenv": "^16.0.0"
+  }
+}

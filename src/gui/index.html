@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>钉钉机器人控制台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "Microsoft YaHei", sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+
+.header { background: #16213e; padding: 16px 24px; border-bottom: 1px solid #0f3460; }
+.header h1 { font-size: 18px; margin-bottom: 12px; color: #fff; }
+.status-bar { display: flex; gap: 24px; align-items: center; font-size: 14px; flex-wrap: wrap; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.dot-running { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+.dot-stopped { background: #f87171; }
+.dot-starting { background: #facc15; animation: pulse 1s infinite; }
+.dot-error { background: #f87171; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.controls { background: #16213e; padding: 12px 24px; border-bottom: 1px solid #0f3460; display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { padding: 8px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+.btn:hover { filter: brightness(1.15); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-start { background: #059669; color: #fff; }
+.btn-restart { background: #2563eb; color: #fff; }
+.btn-stop { background: #dc2626; color: #fff; }
+.btn-config { background: #7c3aed; color: #fff; }
+.btn-exit { background: #6b7280; color: #fff; }
+
+.log-header { padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; background: #0f0f23; }
+.log-header span { font-size: 14px; font-weight: 600; }
+.log-actions { display: flex; gap: 8px; }
+.log-actions button { background: #333; color: #ccc; border: 1px solid #555; border-radius: 4px; padding: 4px 12px; cursor: pointer; font-size: 12px; }
+.log-actions button:hover { background: #444; }
+
+.log-container { flex: 1; overflow-y: auto; background: #0f0f23; padding: 8px 16px; font-family: "Cascadia Code", "Consolas", monospace; font-size: 13px; line-height: 1.6; }
+.log-line { white-space: pre-wrap; word-break: break-all; }
+.log-line.stderr { color: #f87171; }
+.log-line.system { color: #60a5fa; font-style: italic; }
+.log-line .time { color: #6b7280; margin-right: 8px; }
+
+/* 配置弹窗 */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; justify-content: center; align-items: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: #1e293b; border-radius: 12px; padding: 28px; width: 520px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal h2 { font-size: 18px; margin-bottom: 20px; color: #fff; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 13px; margin-bottom: 4px; color: #94a3b8; }
+.field label .req { color: #f87171; }
+.field input { width: 100%; padding: 8px 12px; border: 1px solid #334155; border-radius: 6px; background: #0f172a; color: #e2e8f0; font-size: 14px; }
+.field input:focus { outline: none; border-color: #3b82f6; }
+.modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+.modal-btns .btn { padding: 8px 20px; }
+.btn-save { background: #059669; color: #fff; }
+.btn-save-restart { background: #2563eb; color: #fff; }
+.btn-cancel { background: #4b5563; color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🤖 钉钉机器人控制台</h1>
+  <div class="status-bar">
+    <span><span class="status-dot dot-stopped" id="dot"></span><span id="statusText">已停止</span></span>
+    <span>模型: <strong id="modelText">-</strong></span>
+    <span>运行时间: <strong id="uptimeText">-</strong></span>
+    <span>今日消息: <strong id="msgCount">0</strong></span>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn btn-start" id="btnStart" onclick="api('start')">▶ 启动</button>
+  <button class="btn btn-restart" id="btnRestart" onclick="api('restart')">🔄 重启</button>
+  <button class="btn btn-stop" id="btnStop" onclick="api('stop')">⏹ 停止</button>
+  <button class="btn btn-config" onclick="openConfig()">⚙ 配置</button>
+  <button class="btn btn-exit" onclick="apiExit()">✕ 退出</button>
+</div>
+
+<div class="log-header">
+  <span>📋 实时日志</span>
+  <div class="log-actions">
+    <button onclick="copyLogs()">复制</button>
+    <button onclick="clearLogs()">清空</button>
+    <button id="btnScroll" onclick="toggleScroll()">⏸ 暂停滚动</button>
+  </div>
+</div>
+<div class="log-container" id="logContainer"></div>
+
+<!-- 配置弹窗 -->
+<div class="modal-overlay" id="configModal">
+  <div class="modal">
+    <h2>⚙ 参数配置</h2>
+    <div id="configFields"></div>
+    <div class="modal-btns">
+      <button class="btn btn-cancel" onclick="closeConfig()">取消</button>
+      <button class="btn btn-save" onclick="saveConfig(false)">保存</button>
+      <button class="btn btn-save-restart" onclick="saveConfig(true)">保存并重启</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const logContainer = document.getElementById('logContainer');
+let autoScroll = true;
+let statusTimer = null;
+
+// ── API 调用 ──────────────────────────────────────────────────────────────
+
+async function api(action) {
+  try {
+    const res = await fetch('/api/' + action, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) alert(data.error);
+  } catch (e) { alert('请求失败: ' + e.message); }
+}
+
+async function apiExit() {
+  if (!confirm('确定退出？将停止机器人并关闭控制台。')) return;
+  await api('exit');
+  setTimeout(() => window.close(), 800);
+}
+
+// ── 状态轮询 ──────────────────────────────────────────────────────────────
+
+const STATUS_MAP = {
+  running:  { text: '运行中', dot: 'dot-running' },
+  stopped:  { text: '已停止', dot: 'dot-stopped' },
+  starting: { text: '启动中', dot: 'dot-starting' },
+  error:    { text: '异常',   dot: 'dot-error' },
+};
+
+async function pollStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const s = await res.json();
+    const info = STATUS_MAP[s.status] || STATUS_MAP.stopped;
+    document.getElementById('dot').className = 'status-dot ' + info.dot;
+    document.getElementById('statusText').textContent = info.text;
+    document.getElementById('modelText').textContent = s.model || '-';
+    document.getElementById('msgCount').textContent = s.messageCount || 0;
+    document.getElementById('uptimeText').textContent = s.uptime > 0 ? formatDuration(s.uptime) : '-';
+
+    const isRunning = s.status === 'running' || s.status === 'starting';
+    document.getElementById('btnStart').disabled = isRunning;
+    document.getElementById('btnRestart').disabled = !isRunning;
+    document.getElementById('btnStop').disabled = !isRunning;
+  } catch {}
+}
+
+function formatDuration(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = String(Math.floor(s / 3600)).padStart(2, '0');
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const sec = String(s % 60).padStart(2, '0');
+  return h + ':' + m + ':' + sec;
+}
+
+statusTimer = setInterval(pollStatus, 2000);
+pollStatus();
+
+// ── SSE 日志 ──────────────────────────────────────────────────────────────
+
+function connectSSE() {
+  const es = new EventSource('/api/logs');
+  es.onmessage = (e) => {
+    try {
+      const line = JSON.parse(e.data);
+      appendLog(line);
+    } catch {}
+  };
+  es.onerror = () => {
+    es.close();
+    setTimeout(connectSSE, 3000);
+  };
+}
+
+function appendLog(line) {
+  const div = document.createElement('div');
+  div.className = 'log-line ' + line.type;
+  const time = new Date(line.time).toLocaleTimeString('zh-CN', { hour12: false });
+  div.innerHTML = '<span class="time">' + time + '</span>' + escapeHtml(line.text);
+  logContainer.appendChild(div);
+  while (logContainer.children.length > 1000) {
+    logContainer.removeChild(logContainer.firstChild);
+  }
+  if (autoScroll) logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function clearLogs() { logContainer.innerHTML = ''; }
+
+function copyLogs() {
+  const text = Array.from(logContainer.children).map(el => el.textContent).join('\n');
+  navigator.clipboard.writeText(text).then(() => alert('已复制日志'));
+}
+
+function toggleScroll() {
+  autoScroll = !autoScroll;
+  document.getElementById('btnScroll').textContent = autoScroll ? '⏸ 暂停滚动' : '▶ 自动滚动';
+}
+
+connectSSE();
+
+// ── 配置弹窗 ──────────────────────────────────────────────────────────────
+
+async function openConfig() {
+  const res = await fetch('/api/env');
+  const { fields, values } = await res.json();
+  const container = document.getElementById('configFields');
+  container.innerHTML = '';
+  for (const f of fields) {
+    const val = values[f.key] || '';
+    container.innerHTML += '<div class="field">' +
+      '<label>' + f.label + (f.required ? ' <span class="req">*</span>' : '') + '</label>' +
+      '<input type="' + (f.secret ? 'password' : 'text') + '" id="env_' + f.key + '" value="' + escapeHtml(val) + '" placeholder="' + (f.placeholder || '') + '">' +
+      '</div>';
+  }
+  document.getElementById('configModal').classList.add('show');
+}
+
+function closeConfig() {
+  document.getElementById('configModal').classList.remove('show');
+}
+
+async function saveConfig(restart) {
+  const res = await fetch('/api/env');
+  const { fields } = await res.json();
+  const values = {};
+  for (const f of fields) {
+    const el = document.getElementById('env_' + f.key);
+    if (el && el.value.trim()) values[f.key] = el.value.trim();
+  }
+  await fetch('/api/env', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(values),
+  });
+  closeConfig();
+  if (restart) await api('restart');
+  else alert('配置已保存，重启后生效。');
+}
+</script>
+</body>
+</html>
