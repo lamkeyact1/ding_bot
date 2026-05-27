@@ -231,7 +231,43 @@ async function handleRequest(req, res) {
 
 // ── 启动 ─────────────────────────────────────────────────────────────────────
 
-let actualPort = PORT;
+// ── 单实例保护 ──────────────────────────────────────────────────────────────
+
+const LOCK_FILE = path.join(PROJECT_ROOT, '.gui.lock');
+
+async function checkExistingInstance() {
+  if (!fs.existsSync(LOCK_FILE)) return false;
+  try {
+    const port = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim(), 10);
+    if (!port) return false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(`http://localhost:${port}/api/status`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (res.ok) {
+      if (process.platform === 'win32') {
+        await new Promise((resolve) => exec(`start http://localhost:${port}?duplicate=1`, resolve));
+      }
+      return true;
+    }
+  } catch {}
+  try { fs.unlinkSync(LOCK_FILE); } catch {}
+  return false;
+}
+
+let lockOwner = false;
+
+function writeLock(port) {
+  fs.writeFileSync(LOCK_FILE, String(port), 'utf8');
+  lockOwner = true;
+}
+
+process.on('exit', () => {
+  if (lockOwner) { try { fs.unlinkSync(LOCK_FILE); } catch {} }
+});
+
+// ── 启动 ─────────────────────────────────────────────────────────────────────
+
 const MAX_PORT_TRIES = 10;
 
 function tryListen(port, attempt) {
@@ -239,9 +275,9 @@ function tryListen(port, attempt) {
     console.error(`尝试了 ${MAX_PORT_TRIES} 个端口均被占用，请手动指定: GUI_PORT=xxxx npm run gui`);
     process.exit(1);
   }
-  actualPort = port;
   const s = http.createServer(handleRequest);
   s.listen(port, () => {
+    writeLock(port);
     console.log(`GUI 控制台已启动: http://localhost:${port}`);
     if (process.platform === 'win32') {
       exec(`start http://localhost:${port}`);
@@ -259,4 +295,7 @@ function tryListen(port, attempt) {
   });
 }
 
-tryListen(PORT, 1);
+(async () => {
+  if (await checkExistingInstance()) process.exit(0);
+  tryListen(PORT, 1);
+})();

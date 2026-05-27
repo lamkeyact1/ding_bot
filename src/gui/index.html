@@ -205,6 +205,16 @@ function toggleScroll() {
 
 connectSSE();
 
+// ── 重复启动提示 ─────────────────────────────────────────────────────────
+if (new URLSearchParams(location.search).has('duplicate')) {
+  const toast = document.createElement('div');
+  toast.textContent = '控制台已在运行中，已为你跳转到当前页面。';
+  toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.3);transition:opacity 0.5s;';
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 4000);
+  history.replaceState(null, '', '/');
+}
+
 // ── 配置弹窗 ──────────────────────────────────────────────────────────────
 
 async function openConfig() {
