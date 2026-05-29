@@ -1,25 +1,8 @@
-const { execFile, execSync } = require('child_process');
+const { execFile } = require('child_process');
 const { chatMultiTurn } = require('./claude-client');
 const { reply } = require('./dingtalk-api');
 
-function resolveDwsBin() {
-  if (process.env.DWS_PATH) return process.env.DWS_PATH;
-  try {
-    const whereCmd = process.platform === 'win32' ? 'where dws 2>nul' : 'which dws 2>/dev/null';
-    const result = execSync(whereCmd, { shell: true, encoding: 'utf8', timeout: 5000 }).trim();
-    if (result) {
-      const lines = result.split('\n').map(s => s.trim()).filter(Boolean);
-      if (process.platform === 'win32') {
-        const preferred = lines.find(s => /\.cmd$/i.test(s)) || lines.find(s => /\.exe$/i.test(s)) || lines[0];
-        return preferred;
-      }
-      return lines[0];
-    }
-  } catch (e) { /* not in PATH */ }
-  return 'dws';
-}
-
-const DWS_BIN = resolveDwsBin();
+const DWS_BIN = process.env.DWS_PATH || 'dws';
 const EXEC_TIMEOUT_MS = 30_000;
 const MAX_AGENT_STEPS = 15;
 const WEBHOOK_SAFETY_MARGIN_MS = 10_000;
