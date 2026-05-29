@@ -1,198 +1,159 @@
 # 钉钉 AI 机器人
 
-钉钉企业内部机器人，接入 Claude / DeepSeek 等大模型，支持多轮对话、系统提示词智能管理、钉钉文档操作等能力。
+一个运行在你电脑上的钉钉机器人，可以像真人同事一样跟你聊天、帮你操作钉钉文档、搜索资料等等。
 
 ---
 
-## 架构概览
+## 机器人能做什么
 
-```
-启动.vbs / start.bat
- └─ node src/gui/server.js          ← Web 控制台（端口 3000）
-      └─ fork(src/index.js)          ← 机器人主进程
-           ├─ stream-client.js       ← 钉钉 Stream 长连接
-           │    └─ message-handler.js ← 消息路由与命令分发
-           │         ├─ claude-client.js  ← AI 对话（Anthropic SDK / OpenAI 兼容）
-           │         └─ dws-handler.js   ← 钉钉文档/日历/待办等操作（Agent 循环）
-           ├─ config.js              ← 环境变量加载与校验
-           └─ dingtalk-api.js        ← sessionWebhook 回复
-```
+**聊天对话**
 
-**关键设计：**
+像跟同事聊天一样，问什么答什么，支持多轮连续对话。
 
-- **双格式 AI 接口**：自动识别模型名称，`claude-*` 走 Anthropic SDK（含 Prompt Cache），其他走 OpenAI 兼容格式
-- **会话管理**：内存 Map 存储，按用户隔离，最多 500 会话 × 10 轮，LRU 淘汰 + 24h 过期清理
-- **消息去重**：Stream 回调中 30 分钟滑动窗口去重，防止钉钉 60s 重推
-- **单实例保护**：lockfile + HTTP 探测，防止重复启动多个实例
-- **系统提示词热更新**：`fs.watchFile` 监听 `system-prompt.md`，修改后下一条消息自动生效
+**操作钉钉文档**
+
+对它说「帮我搜一下周报」「创建一篇文档介绍新产品」，它会自动打开钉钉、搜索或创建文档。不用手动打开钉钉去找。
+
+**管理日程和待办**
+
+对它说「帮我创建明天下午3点的会议」「提醒我提交周报」，它会帮你建好日程或待办。
+
+**智能更新提示词**
+
+机器人背后有一套"人设"系统提示词，你可以随时跟它说「以后回答问题时更简洁一些」「我负责销售数据分析」，它会自动调整自己的行为。
 
 ---
 
-## 前置要求
+## 安装步骤
 
-- **Node.js 18+**（[下载](https://nodejs.org)）
-- 钉钉开放平台应用（获取 Client ID / Client Secret）
-- Anthropic API Key 或兼容接口
-- **dws CLI** — 钉钉工作空间命令行工具，机器人通过它操作钉钉产品（群聊、审批、日历等）
+整个安装过程需要 10 分钟左右，只需做一次。
 
-### 安装 dws CLI
+### 第一步：安装 Node.js
 
-通过 PowerShell 一键安装（Windows）：
+1. 打开 https://nodejs.org
+2. 下载左边的 LTS 版本（长期稳定版）
+3. 双击安装，一路点"下一步"即可
+4. 安装完成后，按 `Win + R`，输入 `cmd` 回车，在黑色窗口输入以下命令验证：
+
+```
+node --version
+```
+
+如果显示版本号（如 v20.x.x），说明安装成功。
+
+### 第二步：安装 dws 工具
+
+dws 是机器人的"手"，让它能够操作你的钉钉。
+
+打开 PowerShell（在开始菜单搜索 "PowerShell"），粘贴以下命令回车：
 
 ```powershell
 irm https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-workspace-cli/main/scripts/install.ps1 | iex
 ```
 
-安装后验证：
+安装完成后，**关闭当前所有命令行窗口**，重新打开一个新的 PowerShell 或 cmd，输入以下命令验证：
 
-```bash
+```
 dws --version
 ```
 
-### 登录钉钉
+如果显示版本号，说明安装成功。
 
-```bash
+### 第三步：登录钉钉
+
+在命令行中输入：
+
+```
 dws login
 ```
 
-按提示完成钉钉账号认证。
+按照提示完成钉钉扫码登录。
 
----
+### 第四步：获取项目文件
 
-## 安装
+向项目负责人要一份最新的项目压缩包，解压到你电脑上的一个文件夹（比如桌面）。
 
-```bash
-# 1. 进入项目目录
-cd 钉钉机器人
+### 第五步：安装项目依赖
 
-# 2. 安装依赖
+打开解压后的文件夹，在地址栏输入 `cmd` 回车，在弹出的黑色窗口中输入：
+
+```
 npm install
-
-# 3. 创建配置文件
-cp .env.example .env
-# 然后用文本编辑器打开 .env，填写配置项
 ```
 
----
+等待安装完成（大约 1-2 分钟）。
 
-## 配置（.env）
+### 第六步：填写配置
 
-| 变量 | 必填 | 说明 |
-|---|---|---|
-| `DINGTALK_CLIENT_ID` | 是 | 钉钉应用 Client ID |
-| `DINGTALK_CLIENT_SECRET` | 是 | 钉钉应用 Client Secret |
-| `ANTHROPIC_API_KEY` | 是 | API Key |
-| `ANTHROPIC_BASE_URL` | 否 | 自定义 Anthropic 格式接口地址（使用代理时填写） |
-| `OPENAI_BASE_URL` | 否 | OpenAI 兼容格式接口地址（接入 DeepSeek 等模型时填写） |
-| `CLAUDE_MODEL` | 否 | 模型名称，默认 `claude-sonnet-4-5` |
+1. 在项目文件夹中找到 `.env.example` 文件，把它复制一份，重命名为 `.env`
+2. 用记事本打开 `.env`，填写以下内容：
 
----
-
-## 启动
-
-### 方式一：双击启动（推荐 Windows 用户）
-
-双击 `启动.vbs`（后台静默运行）或 `start.bat`（显示控制台窗口）。
-
-自动打开浏览器 Web 控制台。重复双击不会启动多个实例，会跳转到已运行的控制台页面。
-
-### 方式二：命令行（仅机器人）
-
-```bash
-node src/index.js
-```
-
-### 方式三：命令行（Web 控制台）
-
-```bash
-node src/gui/server.js
-```
-
-正常启动后会看到：
-
-```
-=== 钉钉 Claude 机器人（Stream 模式）===
-模型: claude-sonnet-4-5
-Base URL: https://api.anthropic.com
-正在连接钉钉...
-```
-
----
-
-## Web 控制台
-
-启动后访问 `http://localhost:3000`，提供：
-
-- **状态监控**：运行状态、当前模型、运行时间、今日消息数
-- **一键操控**：启动 / 重启 / 停止机器人
-- **实时日志**：SSE 推送，支持复制、清空、暂停滚动
-- **在线配置**：修改 .env 参数，可保存后立即重启生效
-
----
-
-## 钉钉中使用
-
-### 命令
-
-| 命令 | 说明 |
+| 配置项 | 说明 |
 |---|---|
-| `/clear` | 清除当前对话历史 |
-| `/prompt <描述>` | AI 理解你的意图后智能更新系统提示词 |
-| `/prompt-replace <内容>` | 全量替换系统提示词 |
-| `/dws <操作描述>` | 操作钉钉文档、日历、待办等（需配置 dws CLI） |
+| `DINGTALK_CLIENT_ID` | 钉钉机器人的 Client ID（找项目负责人要） |
+| `DINGTALK_CLIENT_SECRET` | 钉钉机器人的 Client Secret（找项目负责人要） |
+| `ANTHROPIC_API_KEY` | AI 接口的 API Key（找项目负责人要） |
+| `ANTHROPIC_BASE_URL` | AI 接口地址（找项目负责人要） |
 
-### 快捷方式
+其余项保持默认即可。
 
-- 消息中包含 **「文档」** 会自动触发文档操作，无需输入 `/dws`
-- 中文别名：`更新提示词：<内容>`、`修改提示词：<内容>` 等同 `/prompt`
+### 第七步：启动机器人
 
-### 使用示例
+双击项目文件夹中的 **`启动.vbs`**，浏览器会自动打开一个控制台页面，机器人就在后台运行了。
 
-```
-你好                          → 普通 AI 对话
-帮我搜一下文档周报              → 自动触发文档搜索
-创建一篇文档介绍产品线           → 自动创建钉钉文档
-/prompt 我负责PMO专项管理       → AI 理解后融合到系统提示词中
-/clear                        → 清除对话历史
-```
-
-群聊中需 **@机器人** 触发。
+> **提示**：可以把 `启动.vbs` 发送到桌面快捷方式，以后每天开机后双击即可。
 
 ---
 
-## 项目文件说明
+## 日常使用
 
-```
-├── .env.example          # 环境变量模板
-├── system-prompt.md      # 系统提示词（可通过 /prompt 命令在线修改）
-├── 启动.vbs              # Windows 静默启动脚本
-├── start.bat             # Windows 控制台启动脚本
-└── src/
-    ├── index.js          # 机器人入口
-    ├── config.js         # 配置加载与校验
-    ├── stream-client.js  # 钉钉 Stream 连接与消息去重
-    ├── message-handler.js# 消息路由（命令解析 → AI 对话 → 文档操作）
-    ├── claude-client.js  # AI 客户端（Anthropic SDK + OpenAI 兼容双模式）
-    ├── dingtalk-api.js   # 钉钉 webhook 回复
-    ├── dws-handler.js    # 文档操作 Agent（AI 驱动的 dws CLI 编排）
-    └── gui/
-        ├── server.js     # Web 控制台后端
-        └── index.html    # Web 控制台前端
-```
+### 怎么跟机器人说话
+
+打开钉钉，找到机器人（在企业机器人列表中），直接发消息即可。
+
+### 常用说法
+
+| 说法 | 效果 |
+|---|---|
+| `帮我搜一下周报` | 搜索钉钉文档中包含"周报"的内容 |
+| `创建文档介绍我们公司的产品` | 自动创建一篇钉钉文档 |
+| `帮我创建明天下午3点的会议` | 创建一个日程 |
+| `提醒我下班前提交周报` | 创建一个待办 |
+| `/clear` | 清除对话历史，开始新话题 |
+| `/prompt 以后回答简洁一些` | 调整机器人的行为风格 |
+
+### 群聊中使用
+
+把机器人拉到群里，发消息时 **@机器人** 即可。
 
 ---
 
 ## 常见问题
 
-**Q: `dws: command not found` 或 dws 命令无法执行**
-A: 请使用 PowerShell 命令安装 dws：
-```powershell
-irm https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-workspace-cli/main/scripts/install.ps1 | iex
+**Q：双击启动.vbs 没反应？**
+
+打开项目文件夹，在地址栏输入 `cmd` 回车，输入以下命令查看报错信息：
+
 ```
-安装后重启终端，再执行 `dws --version` 验证。不要使用 `npm install -g` 方式安装。
+npm start
+```
 
-**Q: 启动时报认证错误**
-A: 检查 `.env` 中的 `DINGTALK_CLIENT_ID` 和 `DINGTALK_CLIENT_SECRET` 是否正确。
+把报错截图发给项目负责人。
 
-**Q: Claude Code 技能无法使用**
-A: 技能文件已内置在 `.claude/skills/dws/` 中，clone 后自动生效，无需额外配置。
+**Q：机器人提示找不到 dws 命令？**
+
+请确认已通过第二步的 PowerShell 命令安装 dws，不要使用 `npm install -g` 安装。
+
+在命令行输入 `dws --version` 确认 dws 是否可用。如果不可用，重新执行第二步。
+
+**Q：机器人回复"认证失败"？**
+
+检查 `.env` 文件中的 `DINGTALK_CLIENT_ID` 和 `DINGTALK_CLIENT_SECRET` 是否填写正确（注意不要多空格）。
+
+**Q：每天都需要重新启动吗？**
+
+是的，电脑开机后双击 `启动.vbs` 即可。或者把它放到开机启动项中自动运行。
+
+**Q：怎么更新到最新版本？**
+
+找项目负责人要最新压缩包，解压覆盖原有文件，然后重新执行 `npm install` 即可。
