@@ -20,7 +20,7 @@ node src/gui/server.js  # 等同于 npm run gui
 ## 架构
 
 ```
-启动.vbs / start.bat
+启动.vbs
  └─ node src/gui/server.js          ← Web 控制台（HTTP 3000）
       └─ fork(src/index.js)          ← 机器人主进程
            ├─ stream-client.js       ← 钉钉 Stream 长连接（dingtalk-stream SDK）
