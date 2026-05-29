@@ -18,6 +18,7 @@ function createClient() {
   const client = new DWClient({
     clientId: config.dingtalk.clientId,
     clientSecret: config.dingtalk.clientSecret,
+    keepAlive: true, // 开启心跳检测，8s 一次 ping/pong，断线后自动重连
   });
 
   client.registerCallbackListener(TOPIC_ROBOT, async (res) => {
@@ -50,6 +51,11 @@ function createClient() {
     handler.handle(payload).catch((err) => {
       console.error('[stream] 消息处理异常:', err);
     });
+  });
+
+  // 监听连接状态事件
+  client.on('close', () => {
+    console.warn('[stream] ⚠️ 连接已断开，SDK 将自动重连...');
   });
 
   return client;

@@ -33,7 +33,28 @@
 - **Node.js 18+**（[下载](https://nodejs.org)）
 - 钉钉开放平台应用（获取 Client ID / Client Secret）
 - Anthropic API Key 或兼容接口
-- （可选）[dws CLI](https://www.npmjs.com/package/@anthropic-ai/dws) —— 启用文档操作功能
+- **dws CLI** — 钉钉工作空间命令行工具，机器人通过它操作钉钉产品（群聊、审批、日历等）
+
+### 安装 dws CLI
+
+`dws` 是 Go 编译的独立二进制程序，不通过 npm 安装。从内部发布渠道获取 `dws` 二进制文件，放到系统 PATH 中的目录：
+
+- **Windows**：放到 `%LOCALAPPDATA%\Programs\dws\`，并将该目录加入 PATH
+- **macOS / Linux**：放到 `/usr/local/bin/` 或 `~/.local/bin/`
+
+```bash
+# 验证安装
+dws --version
+# 期望输出: dws version v1.0.31 或更高
+```
+
+### 登录钉钉
+
+```bash
+dws login
+```
+
+按提示完成钉钉账号认证。
 
 ---
 
@@ -47,7 +68,7 @@ cd 钉钉机器人
 npm install
 
 # 3. 创建配置文件
-copy .env.example .env
+cp .env.example .env
 # 然后用文本编辑器打开 .env，填写配置项
 ```
 
@@ -84,6 +105,15 @@ node src/index.js
 
 ```bash
 node src/gui/server.js
+```
+
+正常启动后会看到：
+
+```
+=== 钉钉 Claude 机器人（Stream 模式）===
+模型: claude-sonnet-4-5
+Base URL: https://api.anthropic.com
+正在连接钉钉...
 ```
 
 ---
@@ -148,3 +178,16 @@ node src/gui/server.js
         ├── server.js     # Web 控制台后端
         └── index.html    # Web 控制台前端
 ```
+
+---
+
+## 常见问题
+
+**Q: `dws: command not found`**
+A: dws 二进制文件未在 PATH 中，检查安装路径是否正确。
+
+**Q: 启动时报认证错误**
+A: 检查 `.env` 中的 `DINGTALK_CLIENT_ID` 和 `DINGTALK_CLIENT_SECRET` 是否正确。
+
+**Q: Claude Code 技能无法使用**
+A: 技能文件已内置在 `.claude/skills/dws/` 中，clone 后自动生效，无需额外配置。

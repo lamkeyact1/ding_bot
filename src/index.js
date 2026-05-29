@@ -30,3 +30,19 @@ function shutdown(signal) {
 
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+// ── 全局异常捕获：避免未处理异常导致进程静默挂死 ──────────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] 未捕获异常:', err.message);
+  console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] 未处理的 Promise 拒绝:', reason);
+});
+
+// ── 健康心跳日志：每隔一段时间打印，方便定位异常发生时间 ──────────────────────
+setInterval(() => {
+  const mem = process.memoryUsage();
+  console.log(`[health] ${new Date().toISOString()} | 内存: ${Math.round(mem.rss / 1024 / 1024)}MB | 运行中`);
+}, 10 * 60 * 1000); // 每 10 分钟

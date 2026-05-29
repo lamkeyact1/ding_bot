@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(dws *)",
+      "Bash(node *)",
+      "Bash(git config *)",
+      "Bash(gh --version)"
+    ]
+  }
+}

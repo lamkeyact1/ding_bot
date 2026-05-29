@@ -70,7 +70,7 @@ async function mergeSystemPrompt(userRequest) {
 // ── footer ────────────────────────────────────────────────────────────────────
 const COMMANDS_FOOTER = `
 ---
-💡 \`/clear\` 清除历史 · \`/prompt\` 更新提示词 · 发送含「文档」的消息自动操作文档`.trim();
+💡 \`/clear\` 清除历史 · \`/prompt\` 更新提示词 · 发送含「文档」或「表格」的消息自动操作`.trim();
 
 // ── 核心处理 ──────────────────────────────────────────────────────────────────
 async function handle(payload) {
@@ -164,9 +164,10 @@ async function handle(payload) {
     return;
   }
 
-  // ── 自动触发 dws：消息含「文档」───────────────────────────────────────────
-  if (userMessage.includes('文档')) {
-    if (userMessage.trim() === '文档') {
+  // ── 自动触发 dws：消息含「文档」/「表格」或钉钉文档链接 ──────────────────
+  const DWS_TRIGGER = /文档|表格|电子表格|alidocs\.dingtalk\.com/;
+  if (DWS_TRIGGER.test(userMessage)) {
+    if (/^(文档|表格|电子表格)$/.test(userMessage.trim())) {
       await reply(sessionWebhook, dwsHandler.buildHelpText()).catch(err => console.error('[handler] 帮助回复失败:', err.message));
     } else {
       await reply(sessionWebhook, '⏳ 收到，正在处理...').catch(() => {});

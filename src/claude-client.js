@@ -43,7 +43,10 @@ function buildSystemPrompt() {
 // 其他 → 使用 OpenAI 兼容格式
 function useAnthropicFormat() {
   const m = config.claude.model.toLowerCase();
-  return m.startsWith('claude') || m.startsWith('anthropic/');
+  if (m.startsWith('claude') || m.startsWith('anthropic/')) return true;
+  // 未配置 OPENAI_BASE_URL 时，回退到 Anthropic SDK 格式
+  if (!config.claude.openaiBaseURL) return true;
+  return false;
 }
 
 // 只有纯 claude-* 模型才启用 cache_control（DeepSeek 等不支持此字段）
