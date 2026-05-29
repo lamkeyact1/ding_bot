@@ -1,4 +1,4 @@
-const { execFile } = require('child_process');
+const { exec } = require('child_process');
 const { chatMultiTurn } = require('./claude-client');
 const { reply } = require('./dingtalk-api');
 
@@ -158,8 +158,14 @@ function runDws(args) {
     fullArgs.push('--mode', 'append');
     console.log('[dws] 安全兜底：doc update 未指定 --mode，已自动补充 --mode append');
   }
+  const cmd = [DWS_BIN, ...fullArgs].map(arg => {
+    if (/[\s"&|<>^%!]/.test(arg)) {
+      return `"${arg.replace(/"/g, '\\"')}"`;
+    }
+    return arg;
+  }).join(' ');
   return new Promise((resolve, reject) => {
-    execFile(DWS_BIN, fullArgs, { timeout: EXEC_TIMEOUT_MS, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+    exec(cmd, { timeout: EXEC_TIMEOUT_MS, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
         const recoveryMatch = (stderr || '').match(/RECOVERY_EVENT_ID=(\S+)/);
         reject({
