@@ -7,7 +7,14 @@ function resolveDwsBin() {
   try {
     const whereCmd = process.platform === 'win32' ? 'where dws 2>nul' : 'which dws 2>/dev/null';
     const result = execSync(whereCmd, { shell: true, encoding: 'utf8', timeout: 5000 }).trim();
-    if (result) return result.split('\n')[0].trim();
+    if (result) {
+      const lines = result.split('\n').map(s => s.trim()).filter(Boolean);
+      if (process.platform === 'win32') {
+        const preferred = lines.find(s => /\.cmd$/i.test(s)) || lines.find(s => /\.exe$/i.test(s)) || lines[0];
+        return preferred;
+      }
+      return lines[0];
+    }
   } catch (e) { /* not in PATH */ }
   return 'dws';
 }
