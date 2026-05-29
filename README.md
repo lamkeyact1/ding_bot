@@ -37,15 +37,16 @@
 
 ### 安装 dws CLI
 
-`dws` 是 Go 编译的独立二进制程序，不通过 npm 安装。从内部发布渠道获取 `dws` 二进制文件，放到系统 PATH 中的目录：
+通过 PowerShell 一键安装（Windows）：
 
-- **Windows**：放到 `%LOCALAPPDATA%\Programs\dws\`，并将该目录加入 PATH
-- **macOS / Linux**：放到 `/usr/local/bin/` 或 `~/.local/bin/`
+```powershell
+irm https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-workspace-cli/main/scripts/install.ps1 | iex
+```
+
+安装后验证：
 
 ```bash
-# 验证安装
 dws --version
-# 期望输出: dws version v1.0.31 或更高
 ```
 
 ### 登录钉钉
@@ -183,8 +184,12 @@ Base URL: https://api.anthropic.com
 
 ## 常见问题
 
-**Q: `dws: command not found`**
-A: dws 二进制文件未在 PATH 中，检查安装路径是否正确。
+**Q: `dws: command not found` 或 dws 命令无法执行**
+A: 请使用 PowerShell 命令安装 dws：
+```powershell
+irm https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-workspace-cli/main/scripts/install.ps1 | iex
+```
+安装后重启终端，再执行 `dws --version` 验证。不要使用 `npm install -g` 方式安装。
 
 **Q: 启动时报认证错误**
 A: 检查 `.env` 中的 `DINGTALK_CLIENT_ID` 和 `DINGTALK_CLIENT_SECRET` 是否正确。

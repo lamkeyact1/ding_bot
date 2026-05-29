@@ -90,5 +90,9 @@ AI 驱动的命令行编排：用户自然语言 → LLM 生成 JSON 指令 `{ty
 
 ## 外部依赖
 
-- **dws CLI**：Go 编译的独立二进制程序，处理钉钉产品操作（文档/表格/日历/待办/审批/考勤/邮件等），需单独安装并 `dws login`
+- **dws CLI**：钉钉工作空间命令行工具，处理钉钉产品操作（文档/表格/日历/待办/审批/考勤/邮件等）。安装方式：
+  ```powershell
+  irm https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-workspace-cli/main/scripts/install.ps1 | iex
+  ```
+  安装后执行 `dws login` 完成钉钉账号认证。
 - **dingtalk-stream SDK**：`2.1.6-beta.1`，提供 Stream 模式长连接，支持自动重连和心跳
